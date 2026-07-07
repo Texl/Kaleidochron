@@ -6,6 +6,8 @@
   </PropertyGroup>
   
   <ItemGroup>
+    <Compile Include="LinearClock\ClockMath.fs" />
+    <Compile Include="LinearClock\Palette.fs" />
     <Compile Include="LinearClock\LinearClockControl.fs" />
     <Compile Include="LinearClock\LinearClock.fs" />
     <Compile Include="AppBarInterop.fs" />

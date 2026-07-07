@@ -1,0 +1,148 @@
+namespace Kaleidochron
+
+[<AutoOpen>]
+module ClockMathTypes =
+   open System
+   type Clock =
+      {
+         GetTimeOfDay : unit -> TimeSpan
+      }
+
+      static member Default = { GetTimeOfDay = fun () -> DateTime.Now.TimeOfDay }
+
+   /// Stage of the hour-commit choreography. Exhaustive by construction;
+   /// derived purely from time-since-hour — replay is free.
+   type Phase =
+      | FirstHour // no predecessor to animate
+      | Flash of pulse : float // completed hour, still expanded, pulsing
+      | Slide of ease : float // ease-in collapse (t³)
+      | Filling of glow : float
+
+   /// Piecewise-linear layout with hour k expanded.
+   type Layout =
+      {
+         Map : float -> float // minutes-since-DayStart → x (device-independent px)
+         Edge : float // left edge of the expanded hour = now line's home
+         S : float // px/min outside the expanded hour (constant all day)
+         WL : float // px width of the expanded hour
+      }
+
+   type ClockTuning =
+      {
+         DayStart : TimeSpan
+         DayEnd : TimeSpan
+         HourWidthMultiple : float
+         FlashDuration : TimeSpan
+         SlideDuration : TimeSpan
+         CoolDuration : TimeSpan
+         BarHeight : float
+         RealTime : bool
+      }
+
+      member this.SpanMinutes = (this.DayEnd - this.DayStart).TotalMinutes
+
+      member this.HourCount = int (this.SpanMinutes / 60.0)
+      member this.HourCount2 = (this.DayEnd - this.DayStart).Hours
+
+      static member Default =
+         {
+            DayStart = TimeSpan.FromHours 9.0
+            DayEnd = TimeSpan.FromHours 20.0
+            HourWidthMultiple = 8.0
+            FlashDuration = TimeSpan.FromMilliseconds 400.0
+            SlideDuration = TimeSpan.FromMilliseconds 1200.0
+            CoolDuration = TimeSpan.FromMilliseconds 2500.0
+            BarHeight = 12.0
+            RealTime = false
+         }
+
+module ClockMath =
+   open System
+
+   /// Top-hat lens on hour k with global amortization:
+   /// s = (W − W_L)/(span − 60) is independent of k, so every hour outside
+   /// the expanded one sits at a fixed position for the entire day. Between
+   /// commits the layout is fully static; only the fill edge moves.
+   let layoutFor (t : ClockTuning) (width : float) (k : int) : Layout =
+      let span = t.SpanMinutes
+      let wl = t.HourWidthMultiple * width * 60.0 / span
+      let s = (width - wl) / (span - 60.0)
+      let ks = float k * 60.0
+      let edge = s * ks
+
+      {
+         Map =
+            fun m ->
+               if m <= ks then s * m
+               elif m >= ks + 60.0 then edge + wl + s * (m - ks - 60.0)
+               else edge + (m - ks) * wl / 60.0
+         Edge = edge
+         S = s
+         WL = wl
+      }
+
+   let inline lerp a b t = a + (b - a) * t
+
+   let phase (t : ClockTuning) (hourIndex : int) (sinceTick : TimeSpan) : Phase =
+      if hourIndex = 0 then
+         FirstHour
+      else
+         let sec = sinceTick.TotalSeconds
+         let f = max 0.001 t.FlashDuration.TotalSeconds
+         let sl = max 0.02 t.SlideDuration.TotalSeconds
+
+         if sec < f then
+            let p = sin (Math.PI * 2.0 * sec / f)
+            Flash(0.6 * p * p) // two pulses across the window
+         elif sec < f + sl then
+            let tn = (sec - f) / sl
+            Slide(tn * tn * tn)
+         else
+            let ga = sec - f - sl
+            let coolTau = max 0.02 (t.CoolDuration.TotalSeconds / 3.0)
+            let glow = 0.8 * exp (-ga / 0.13) + 0.3 * exp (-ga / coolTau)
+            Filling(if glow < 0.01 then 0.0 else glow)
+
+   type TickLevel =
+      {
+         Step : float
+         Coarser : float
+         HeightFrac : float
+         Width : float
+         Gate : float
+      }
+
+   /// Gated fine levels. Quarters are structural (drawn per expanded hour),
+   /// so the chain here is 5 min → 1 min → 15 s, each fading in only where
+   /// its local pixel spacing clears its gate.
+   let tickLevels =
+      [
+         {
+            Step = 15.0
+            Coarser = 60.0
+            HeightFrac = 0.8
+            Width = 1.0
+            Gate = 4.0
+         }
+         {
+            Step = 5.0
+            Coarser = 15.0
+            HeightFrac = 0.4
+            Width = 1.0
+            Gate = 20.0
+         }
+         {
+            Step = 1.0
+            Coarser = 5.0
+            HeightFrac = 0.2
+            Width = 1.0
+            Gate = 20.0
+         }
+         {
+            Step = 0.25
+            Coarser = 1.0
+            HeightFrac = 0.1
+            Width = 1.0
+            Gate = 20.0
+         }
+      ]

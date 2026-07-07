@@ -38,9 +38,11 @@ let shutdown exitCode =
    | _ -> ()
 
 let clock =
-#if DEBUG
-   { GetTimeOfDay = fun () -
-       > TimeSpan.FromHours(60.0 * DateTime.Now.Totalhou  }
+#if false
+   let initial = DateTime.Now
+   let debugInitial = initial.Date + TimeSpan.FromHours(initial.TimeOfDay.Hours, 59, 50)
+   let offset = debugInitial - initial
+   { GetTimeOfDay = fun () -> (DateTime.Now + offset).TimeOfDay }
 #else
    Clock.Default
 #endif
@@ -50,7 +52,7 @@ let view (m : Model) (_dispatch : Msg -> unit) =
       StackPanel.background Brushes.Black
       StackPanel.children [
          LinearClock.create [
-            Control.height 40.0
+            Control.height 20.0
             LinearClock.clock clock
             LinearClock.tuning m.ClockTuning
          ]
@@ -61,7 +63,7 @@ type MainWindow () as this =
    inherit HostWindow ()
 
    let appBarEdge = Shell32.ABE.ABE_TOP
-   let appBarThickness = 40
+   let appBarThickness = 20
    let messageId = 0x0401u
 
    let mutable registeredAppBar : AppBarInterop.ScreenEdgeAppBar option = None
