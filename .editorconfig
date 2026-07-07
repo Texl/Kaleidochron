@@ -1,0 +1,33 @@
+root = true
+
+# All files
+
+[*]
+indent_style = space
+indent_size = 3
+end_of_line = crlf
+charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+# F#
+[*.{fs,fsx}]
+# fsharp_multiline_bracket_style = stroustrup # default cramped
+max_line_length = 160 # default 120
+fsharp_max_record_width = 60 # default 40
+fsharp_max_value_binding_width = 100 # default 80
+fsharp_experimental_elmish = true
+
+# JSON
+
+[*.json]
+indent_size = 2
+
+# VS / MSBuild
+
+[*.{csproj,fsproj,vcxproj,vcxproj.filters,props,targets}]
+indent_size = 2
+
+[*.{sln,sln.template}]
+indent_style = tab
+indent_size = 4

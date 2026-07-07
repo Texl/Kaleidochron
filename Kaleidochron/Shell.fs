@@ -1,0 +1,121 @@
+module Kaleidochron.Shell
+
+open System
+open Avalonia.Media
+open Elmish
+open Avalonia
+open Avalonia.Controls
+open Avalonia.Controls.ApplicationLifetimes
+open Avalonia.FuncUI.DSL
+open Avalonia.FuncUI.Hosts
+open Avalonia.FuncUI.Elmish
+open Vanara.PInvoke
+
+type Model = { ClockTuning : ClockTuning; Playing : bool }
+
+let init () =
+   { ClockTuning = ClockTuning.Default; Playing = true }
+
+type Msg =
+   | SetClockTuning of ClockTuning
+   | TogglePlay
+   | ToggleRealTime
+   | ResetDay
+
+let update msg m =
+   match msg with
+   | SetClockTuning clockTuning -> { m with ClockTuning = clockTuning }
+   | TogglePlay -> { m with Playing = not m.Playing }
+   | ToggleRealTime ->
+      { m with
+         Model.ClockTuning.RealTime = not m.ClockTuning.RealTime
+      }
+   | ResetDay -> m
+
+let shutdown exitCode =
+   match Application.Current.ApplicationLifetime with
+   | :? IClassicDesktopStyleApplicationLifetime as desktopLifetime -> desktopLifetime.Shutdown(exitCode)
+   | _ -> ()
+
+let clock =
+#if DEBUG
+   { GetTimeOfDay = fun () -
+       > TimeSpan.FromHours(60.0 * DateTime.Now.Totalhou  }
+#else
+   Clock.Default
+#endif
+
+let view (m : Model) (_dispatch : Msg -> unit) =
+   StackPanel.create [
+      StackPanel.background Brushes.Black
+      StackPanel.children [
+         LinearClock.create [
+            Control.height 40.0
+            LinearClock.clock clock
+            LinearClock.tuning m.ClockTuning
+         ]
+      ]
+   ]
+
+type MainWindow () as this =
+   inherit HostWindow ()
+
+   let appBarEdge = Shell32.ABE.ABE_TOP
+   let appBarThickness = 40
+   let messageId = 0x0401u
+
+   let mutable registeredAppBar : AppBarInterop.ScreenEdgeAppBar option = None
+
+   let configuration : AppBarInterop.Configuration =
+      {
+         AppBarEdge = appBarEdge
+         AppBarThickness = appBarThickness
+         MessageId = messageId
+      }
+
+   let windowStylesCallback style exStyle =
+      let WS_POPUP = 0x80000000u
+      struct (style ||| WS_POPUP, exStyle)
+
+   let wndProcHookCallback =
+      Win32Properties.CustomWndProcHookCallback(fun _ msg wParam lParam handled ->
+         match registeredAppBar with
+         | Some appBar when appBar.Configuration.MessageId = msg ->
+            let screen = this.Screens.ScreenFromWindow(this)
+            appBar.HandleNotification(wParam, screen, appBarThickness) |> ignore
+            IntPtr.Zero
+         | _ -> IntPtr.Zero)
+
+   do
+      base.Title <- "LinearClock"
+
+      this.SizeToContent <- SizeToContent.Height
+      this.WindowDecorations <- WindowDecorations.None
+
+      // Set WS_POPUP style to remove window padding
+      Win32Properties.AddWindowStylesCallback(this, windowStylesCallback)
+
+      Elmish.Program.mkSimple init update view // make program
+      |> Program.withHost this
+      |> Program.run
+
+   override _.OnOpened(e) =
+      base.OnOpened(e)
+
+      let appBar =
+         let hwnd = this.TryGetPlatformHandle().Handle
+         AppBarInterop.ScreenEdgeAppBar(hwnd, configuration)
+
+      let screen = this.Screens.ScreenFromWindow(this)
+
+      appBar.Register()
+      appBar.UpdatePosition(screen, configuration.AppBarThickness) |> ignore
+
+      registeredAppBar <- Some appBar
+
+      Win32Properties.AddWndProcHookCallback(this, wndProcHookCallback)
+
+   override _.OnClosed(e) =
+      base.OnClosed(e)
+      registeredAppBar |> Option.iter _.Unregister()
+      registeredAppBar <- None
