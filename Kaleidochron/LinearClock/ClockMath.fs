@@ -76,7 +76,7 @@ module ClockMathTypes =
             DayStart = TimeSpan.FromHours 9.0
             DayEnd = TimeSpan.FromHours 21.0
             HourWidthMultiple = 8.0
-            FlashDuration = TimeSpan.FromMilliseconds 2000.0
+            FlashDuration = TimeSpan.FromMilliseconds 600.0
             SlideDuration = TimeSpan.FromMilliseconds 1200.0
             CoolDuration = TimeSpan.FromMilliseconds 4800.0
             BarHeight = 12.0
@@ -120,8 +120,8 @@ module ClockMath =
          let sl = max 0.02 t.SlideDuration.TotalSeconds
 
          if sec < f then
-            let p = sin (Math.PI * 2.0 * sec / f)
-            Flash(0.6 * p * p) // two pulses across the window
+            let p = sin (Math.PI * 3.0 * sec / f)
+            Flash(p * p) // two pulses across the window
          elif sec < f + sl then
             let tn = (sec - f) / sl
             Slide(tn * tn * tn)

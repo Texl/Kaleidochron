@@ -5,7 +5,8 @@ module private Palette =
    open Avalonia.Media
    open Avalonia.Media.Immutable
 
-   let rgb (v : int) = Color.FromUInt32(0xFF000000u ||| uint v)
+   let rgb (v : int) =
+      Color.FromUInt32(0xFF000000u ||| uint v)
 
    // MP4 scheme
    module MP4 =
@@ -68,14 +69,18 @@ module private Palette =
    let solidA (c : Color) (alpha : float) : IBrush =
       ImmutableSolidColorBrush(c, Math.Clamp(alpha, 0.0, 1.0))
 
-   let gradient (t1 : float, c1 : Color) (t2 : float, c2 : Color) : IBrush =
-      let stop1 = ImmutableGradientStop(Math.Clamp(t1, 0.0, 1.0), c1)
-      let stop2 = ImmutableGradientStop(Math.Clamp(t2, 0.0, 1.0), c2)
-      ImmutableLinearGradientBrush([| stop1; stop2 |])
+   let gradient (stops : (float * Color)[]) : IBrush =
+      let gradientStops =
+         stops
+         |> Array.map (fun (t, c) -> ImmutableGradientStop(Math.Clamp(t, 0.0, 1.0), c))
 
-   let gradientA (t1 : float, c1 : Color) (t2 : float, c2 : Color) (alpha : float) : IBrush =
-      let stop1 = ImmutableGradientStop(Math.Clamp(t1, 0.0, 1.0), c1)
-      let stop2 = ImmutableGradientStop(Math.Clamp(t2, 0.0, 1.0), c2)
-      ImmutableLinearGradientBrush([| stop1; stop2 |], Math.Clamp(alpha, 0.0, 1.0))
+      ImmutableLinearGradientBrush(gradientStops)
+
+   let gradientA (stops : (float * Color)[]) (alpha : float) : IBrush =
+      let gradientStops =
+         stops
+         |> Array.map (fun (t, c) -> ImmutableGradientStop(Math.Clamp(t, 0.0, 1.0), c))
+
+      ImmutableLinearGradientBrush(gradientStops, Math.Clamp(alpha, 0.0, 1.0))
 
    let typeface = Typeface(FontFamily "Fira Code, Consolas, monospace")

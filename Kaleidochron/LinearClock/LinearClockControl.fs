@@ -6,16 +6,18 @@ open Avalonia
 open Avalonia.Controls
 open Avalonia.Media
 
-type LinearClockControl () =
-   inherit Control ()
+type LinearClockControl() =
+   inherit Control()
 
    let mutable animating = false
 
    static let clockProperty = AvaloniaProperty.Register<LinearClockControl, Clock>("Clock", Clock.Default)
 
-   static let tuningProperty = AvaloniaProperty.Register<LinearClockControl, ClockTuning>("Tuning", ClockTuning.Default)
+   static let tuningProperty =
+      AvaloniaProperty.Register<LinearClockControl, ClockTuning>("Tuning", ClockTuning.Default)
 
-   static let hoursLoggedProperty = AvaloniaProperty.Register<LinearClockControl, TimeSpan>("HoursLogged", TimeSpan.Zero)
+   static let hoursLoggedProperty =
+      AvaloniaProperty.Register<LinearClockControl, TimeSpan>("HoursLogged", TimeSpan.Zero)
 
    static member ClockProperty = clockProperty
 
@@ -70,6 +72,7 @@ type LinearClockControl () =
 
          let totalMinutesNow =
             let day = 24.0 * 60.0
+
             (((timeOfDay - windowStart).TotalMinutes % day) + day) % day
             |> min (tuning.SpanMinutes - 1e-4)
 
@@ -94,27 +97,19 @@ type LinearClockControl () =
          let map, markerX, oldHot =
             match phase, la with
             | FirstHour, _
-            | _, None ->
-               lb.Map,
-               lb.Edge,
-               0.0
-            | Flash p, Some a ->
-               a.Map,
-               a.Edge,
-               p
-            | Slide e, Some a ->
-               (fun m -> ClockMath.lerp (a.Map m) (lb.Map m) e),
-               ClockMath.lerp a.Edge lb.Edge e,
-               0.25 * (1.0 - e)
-            | Filling glow, Some _ ->
-               lb.Map,
-               lb.Edge,
-               glow
+            | _, None -> lb.Map, lb.Edge, 0.0
+            | Flash p, Some a -> a.Map, a.Edge, p
+            | Slide e, Some a -> (fun m -> ClockMath.lerp (a.Map m) (lb.Map m) e), ClockMath.lerp a.Edge lb.Edge e, 0.25 * (1.0 - e)
+            | Filling glow, Some _ -> lb.Map, lb.Edge, glow
 
          // ---- draw helpers ----
          let fillRect (brush : IBrush) x y wd ht =
             if wd > 0.0 && ht > 0.0 then
                ctx.FillRectangle(brush, Rect(x, y, wd, ht))
+
+         let fillRectFrame (pen : IPen) x y wd ht =
+            if wd > 0.0 && ht > 0.0 then
+               ctx.DrawRectangle(pen, Rect(x, y, wd, ht))
 
          let label (text : string) x y (color : Color) alpha =
             let ft =
@@ -145,6 +140,10 @@ type LinearClockControl () =
 
             fillRect (Palette.solid cellColor) x0 yTop (x1 - x0) barH
 
+            if j = h - 1 && oldHot > 0.0 then
+               let pen = Pen(Palette.solidA Palette.marker oldHot, 2.0)
+               fillRectFrame pen x0 yTop (x1 - x0) barH
+
             let getQuarticPulse interval duration =
                let t = timeOfDay.TotalSeconds % interval
                Math.Pow(min (t / duration) 1.0, 4.0)
@@ -156,8 +155,7 @@ type LinearClockControl () =
             let pulse, widthPulse =
                let interval = 5.0
                let duration = 5.0
-               getQuarticPulse interval duration,
-               getQuadraticPulse interval duration
+               getQuarticPulse interval duration, getQuadraticPulse interval duration
 
             // current-hour fill + leading edge
             if j = h then
@@ -170,7 +168,7 @@ type LinearClockControl () =
                   let widthEnd = 0.0
                   let pulseWidth = widthStart * (1.0 - pulse) + widthEnd * pulse
                   // fillRect (Palette.solidA Palette.currentCellHot pulse) (xf - pulseWidth) yTop pulseWidth barH
-                  fillRect (Palette.gradientA (0.0, Palette.currentCell) (0.8, Palette.currentCellHot) pulse) (xf - pulseWidth) yTop pulseWidth barH
+                  fillRect (Palette.gradientA [| (0.0, Palette.currentCell); (0.75, Palette.currentCellHot); (1.0, Palette.currentCell) |] pulse) (xf - pulseWidth) yTop pulseWidth barH
 
             // structural quarter kerfs + labels: any hour wide enough,
             // so the completed hour keeps its quarters through flash & collapse
