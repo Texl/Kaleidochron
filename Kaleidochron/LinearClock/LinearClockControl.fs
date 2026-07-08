@@ -66,10 +66,12 @@ type LinearClockControl () =
       else
          let timeOfDay = this.Clock.GetTimeOfDay()
 
+         let windowStart = tuning.WindowStart timeOfDay
+
          let totalMinutesNow =
-            (timeOfDay - tuning.DayStart).TotalMinutes
-            |> max 0.0
-            |> min (tuning.SpanMinutes - 1e-4) // outside window: pinned empty/full
+            let day = 24.0 * 60.0
+            (((timeOfDay - windowStart).TotalMinutes % day) + day) % day
+            |> min (tuning.SpanMinutes - 1e-4)
 
          let h = int (totalMinutesNow / 60.0)
          let phase = ClockMath.phase tuning h (TimeSpan.FromMinutes(totalMinutesNow % 60.0))
@@ -214,7 +216,7 @@ type LinearClockControl () =
          for j in 0 .. tuning.HourCount do
             let x = map (float j * 60.0)
             // label (string (tuning.DayStart.Hours + j)) (x + 3.0) (yTop + barH + 0.0) Palette.labelC 0.9
-            label (string ((((tuning.DayStart.Hours + j) - 1) % 12) + 1)) (x + 3.0) (yTop + barH) Palette.labelC 0.75
+            label (string ((((windowStart.Hours + j) - 1) % 12) + 1)) (x + 3.0) (yTop + barH) Palette.labelC 0.75
 
          // ---- now line ----
          fillRect (Palette.solid Palette.marker) (markerX + 1.0) yTop 1.0 barH
@@ -227,11 +229,14 @@ type LinearClockControl () =
          let g = tuning.Gauge
 
          if g.Enabled && g.Height > 0.0 then
-            let originMin = Math.Clamp((g.Origin - tuning.DayStart).TotalMinutes, 0.0, tuning.SpanMinutes)
-            let filledMin = Math.Clamp(originMin + this.HoursLogged.TotalMinutes, originMin, tuning.SpanMinutes)
-            let yg = yTop + barH + g.Offset
-            let x0 = map originMin
-            let xf = map filledMin
+            let originMin = (g.Origin - windowStart).TotalMinutes
 
-            fillRect (Palette.solid Palette.gaugeTrack) x0 yg (map tuning.SpanMinutes - x0) g.Height
-            fillRect (Palette.solid Palette.gaugeFill) x0 yg (xf - x0) g.Height
+            // Origin outside the active window (e.g. overnight): gauge hidden
+            if originMin >= 0.0 && originMin < tuning.SpanMinutes then
+               let filledMin = Math.Clamp(originMin + this.HoursLogged.TotalMinutes, originMin, tuning.SpanMinutes)
+               let yg = yTop + barH + g.Offset
+               let x0 = map originMin
+               let xf = map filledMin
+
+               fillRect (Palette.solid Palette.gaugeTrack) x0 yg (map tuning.SpanMinutes - x0) g.Height
+               fillRect (Palette.solid Palette.gaugeFill) x0 yg (xf - x0) g.Height

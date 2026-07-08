@@ -59,6 +59,15 @@ module ClockMathTypes =
 
       member this.SpanMinutes = (this.DayEnd - this.DayStart).TotalMinutes
 
+      /// Left edge of the span-sized window containing timeOfDay. Windows
+      /// tile the 24h day anchored at DayStart, so 9→21 rolls over to 21→9
+      /// (and back again at 9), including the stretch past midnight.
+      member this.WindowStart (timeOfDay : TimeSpan) : TimeSpan =
+         let day = 24.0 * 60.0
+         let since = (((timeOfDay - this.DayStart).TotalMinutes % day) + day) % day
+         let k = floor (since / this.SpanMinutes)
+         TimeSpan.FromMinutes((this.DayStart.TotalMinutes + k * this.SpanMinutes) % day)
+
       member this.HourCount = int (this.SpanMinutes / 60.0)
       member this.HourCount2 = (this.DayEnd - this.DayStart).Hours
 
@@ -67,9 +76,9 @@ module ClockMathTypes =
             DayStart = TimeSpan.FromHours 9.0
             DayEnd = TimeSpan.FromHours 21.0
             HourWidthMultiple = 8.0
-            FlashDuration = TimeSpan.FromMilliseconds 400.0
+            FlashDuration = TimeSpan.FromMilliseconds 2000.0
             SlideDuration = TimeSpan.FromMilliseconds 1200.0
-            CoolDuration = TimeSpan.FromMilliseconds 2500.0
+            CoolDuration = TimeSpan.FromMilliseconds 4800.0
             BarHeight = 12.0
             RealTime = false
             Gauge = GaugeTuning.Default

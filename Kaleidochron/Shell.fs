@@ -49,9 +49,9 @@ let shutdown exitCode =
    | _ -> ()
 
 let clock =
-#if false
+#if DEBUG
    let initial = DateTime.Now
-   let debugInitial = initial.Date + TimeSpan.FromHours(initial.TimeOfDay.Hours, 59, 50)
+   let debugInitial = initial.Date + TimeSpan.FromHours(initial.TimeOfDay.Hours, 59, 55)
    let offset = debugInitial - initial
    { GetTimeOfDay = fun () -> (DateTime.Now + offset).TimeOfDay }
 #else
