@@ -76,8 +76,9 @@ type MainWindow () as this =
       }
 
    let windowStylesCallback style exStyle =
-      let WS_POPUP = 0x80000000u
-      struct (style ||| WS_POPUP, exStyle)
+      let WS_POPUP = 0x80000000u // remove window margin
+      let WS_EX_TOOLWINDOW = 0x00000080u // hide from Alt+Tab
+      struct (style ||| WS_POPUP, exStyle ||| WS_EX_TOOLWINDOW)
 
    let wndProcHookCallback =
       Win32Properties.CustomWndProcHookCallback(fun _ msg wParam lParam handled ->
@@ -93,6 +94,7 @@ type MainWindow () as this =
 
       this.SizeToContent <- SizeToContent.Height
       this.WindowDecorations <- WindowDecorations.None
+      this.ShowInTaskbar <- false
 
       // Set WS_POPUP style to remove window padding
       Win32Properties.AddWindowStylesCallback(this, windowStylesCallback)

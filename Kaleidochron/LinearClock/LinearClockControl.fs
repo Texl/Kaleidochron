@@ -135,14 +135,32 @@ type LinearClockControl () =
 
             fillRect (Palette.solid cellColor) x0 yTop (x1 - x0) barH
 
+            let getQuarticPulse interval duration =
+               let t = timeOfDay.TotalSeconds % interval
+               Math.Pow(min (t / duration) 1.0, 4.0)
+
+            let getQuadraticPulse interval duration =
+               let t = timeOfDay.TotalSeconds % interval
+               Math.Pow(min (t / duration) 1.0, 2.0)
+
+            let pulse, widthPulse =
+               let interval = 5.0
+               let duration = 5.0
+               getQuarticPulse interval duration,
+               getQuadraticPulse interval duration
+
             // current-hour fill + leading edge
             if j = h then
                let xf = map (min totalMinutesNow m1)
 
                if xf > x0 then
-                  fillRect (Palette.solid (Palette.lerpColor Palette.currentCell Palette.currentCellHot 0.12)) x0 yTop (xf - x0) barH
+                  fillRect (Palette.solid Palette.currentCell) x0 yTop (xf - x0) barH
                   fillRect (Palette.solid Palette.currentCellDim) xf yTop (x1 - xf) barH
-                  fillRect (Palette.solidA Palette.currentCellHot 0.9) (xf - 1.0) yTop 1.0 barH
+                  let widthStart = xf - x0
+                  let widthEnd = 0.0
+                  let pulseWidth = widthStart * (1.0 - pulse) + widthEnd * pulse
+                  // fillRect (Palette.solidA Palette.currentCellHot pulse) (xf - pulseWidth) yTop pulseWidth barH
+                  fillRect (Palette.gradientA (0.0, Palette.currentCell) (0.8, Palette.currentCellHot) pulse) (xf - pulseWidth) yTop pulseWidth barH
 
             // structural quarter kerfs + labels: any hour wide enough,
             // so the completed hour keeps its quarters through flash & collapse
@@ -188,7 +206,7 @@ type LinearClockControl () =
          for j in 0 .. tuning.HourCount do
             let x = map (float j * 60.0)
             // label (string (tuning.DayStart.Hours + j)) (x + 3.0) (yTop + barH + 0.0) Palette.labelC 0.9
-            label (string ((((tuning.DayStart.Hours + j) - 1) % 12) + 1)) (x + 3.0) (yTop + barH) Palette.labelC 1.0
+            label (string ((((tuning.DayStart.Hours + j) - 1) % 12) + 1)) (x + 3.0) (yTop + barH) Palette.labelC 0.75
 
          // ---- now line ----
          fillRect (Palette.solid Palette.marker) (markerX + 1.0) yTop 1.0 barH
