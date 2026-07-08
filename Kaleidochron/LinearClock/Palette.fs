@@ -20,11 +20,11 @@ module private Palette =
       let gray2 = rgb 0x545454 // hsv(0 0%  33%)
       let gray1 = rgb 0x2A2A2A // hsv(0 0%  17%)
 
-      let orange5 = rgb 0xFFEECC
-      let orange4 = rgb 0xFFA800
-      let orange3 = rgb 0x996500
-      // let orange2 = rgb // todo
-      let orange1 = rgb 0x33220
+      let orange5 = rgb 0xFFEECC // hsv(40 20% 100%)
+      let orange4 = rgb 0xFFA800 // hsv(40 100% 100%)
+      let orange3 = rgb 0x996500 // hsv(40 100% 60%)
+      let orange2 = rgb 0x664400 // hsv(40 100% 40%)
+      let orange1 = rgb 0x332200 // hsv(40 100% 20%)
 
       let cyan = rgb 0x49F7FF
       let green = rgb 0x7FED46
@@ -51,6 +51,9 @@ module private Palette =
    let kerf = MP4.gray1
    let labelC = MP4.gray3
    let marker = MP4.gray5
+
+   let gaugeFill = MP4.orange4
+   let gaugeTrack = MP4.orange1
 
    let lerpColor (a : Color) (b : Color) (t : float) =
       let t = Math.Clamp(t, 0.0, 1.0)

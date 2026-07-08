@@ -11,13 +11,23 @@ open Avalonia.FuncUI.Hosts
 open Avalonia.FuncUI.Elmish
 open Vanara.PInvoke
 
-type Model = { ClockTuning : ClockTuning; Playing : bool }
+type Model =
+   {
+      ClockTuning : ClockTuning
+      Playing : bool
+      HoursLogged : TimeSpan
+   }
 
 let init () =
-   { ClockTuning = ClockTuning.Default; Playing = true }
+   {
+      ClockTuning = ClockTuning.Default
+      Playing = true
+      HoursLogged = TimeSpan.FromHours 3.25 // placeholder until wired to a real data source
+   }
 
 type Msg =
    | SetClockTuning of ClockTuning
+   | SetHoursLogged of TimeSpan
    | TogglePlay
    | ToggleRealTime
    | ResetDay
@@ -25,6 +35,7 @@ type Msg =
 let update msg m =
    match msg with
    | SetClockTuning clockTuning -> { m with ClockTuning = clockTuning }
+   | SetHoursLogged hours -> { m with HoursLogged = hours }
    | TogglePlay -> { m with Playing = not m.Playing }
    | ToggleRealTime ->
       { m with
@@ -52,9 +63,10 @@ let view (m : Model) (_dispatch : Msg -> unit) =
       StackPanel.background Brushes.Black
       StackPanel.children [
          LinearClock.create [
-            Control.height 20.0
+            Control.height 26.0
             LinearClock.clock clock
             LinearClock.tuning m.ClockTuning
+            LinearClock.hoursLogged m.HoursLogged
          ]
       ]
    ]
@@ -63,7 +75,7 @@ type MainWindow () as this =
    inherit HostWindow ()
 
    let appBarEdge = Shell32.ABE.ABE_TOP
-   let appBarThickness = 20
+   let appBarThickness = 26
    let messageId = 0x0401u
 
    let mutable registeredAppBar : AppBarInterop.ScreenEdgeAppBar option = None

@@ -15,9 +15,13 @@ type LinearClockControl () =
 
    static let tuningProperty = AvaloniaProperty.Register<LinearClockControl, ClockTuning>("Tuning", ClockTuning.Default)
 
+   static let hoursLoggedProperty = AvaloniaProperty.Register<LinearClockControl, TimeSpan>("HoursLogged", TimeSpan.Zero)
+
    static member ClockProperty = clockProperty
 
    static member TuningProperty = tuningProperty
+
+   static member HoursLoggedProperty = hoursLoggedProperty
 
    member this.Clock
       with get () = this.GetValue clockProperty
@@ -26,6 +30,10 @@ type LinearClockControl () =
    member this.Tuning
       with get () = this.GetValue tuningProperty
       and set (v : ClockTuning) = this.SetValue(tuningProperty, v) |> ignore
+
+   member this.HoursLogged
+      with get () = this.GetValue hoursLoggedProperty
+      and set (v : TimeSpan) = this.SetValue(hoursLoggedProperty, v) |> ignore
 
    override this.OnAttachedToVisualTree e =
       base.OnAttachedToVisualTree e
@@ -210,3 +218,20 @@ type LinearClockControl () =
 
          // ---- now line ----
          fillRect (Palette.solid Palette.marker) (markerX + 1.0) yTop 1.0 barH
+
+         // ---- hours-logged gauge ----
+         // Shares `map` with the bar above, so its left edge rides the Origin
+         // hour boundary through commit animations, and its fill edge can be
+         // compared against the now line: logged = elapsed-since-Origin lands
+         // the fill edge exactly on the marker.
+         let g = tuning.Gauge
+
+         if g.Enabled && g.Height > 0.0 then
+            let originMin = Math.Clamp((g.Origin - tuning.DayStart).TotalMinutes, 0.0, tuning.SpanMinutes)
+            let filledMin = Math.Clamp(originMin + this.HoursLogged.TotalMinutes, originMin, tuning.SpanMinutes)
+            let yg = yTop + barH + g.Offset
+            let x0 = map originMin
+            let xf = map filledMin
+
+            fillRect (Palette.solid Palette.gaugeTrack) x0 yg (map tuning.SpanMinutes - x0) g.Height
+            fillRect (Palette.solid Palette.gaugeFill) x0 yg (xf - x0) g.Height

@@ -13,3 +13,6 @@ module LinearClock =
 
    let tuning (value : ClockTuning) : IAttr<LinearClockControl> =
       AttrBuilder<LinearClockControl>.CreateProperty<ClockTuning>(LinearClockControl.TuningProperty, value, ValueNone)
+
+   let hoursLogged (value : System.TimeSpan) : IAttr<LinearClockControl> =
+      AttrBuilder<LinearClockControl>.CreateProperty<System.TimeSpan>(LinearClockControl.HoursLoggedProperty, value, ValueNone)

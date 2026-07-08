@@ -27,6 +27,23 @@ module ClockMathTypes =
          WL : float // px width of the expanded hour
       }
 
+   /// Hours-logged gauge drawn under the clock bar, sharing its time→x map.
+   type GaugeTuning =
+      {
+         Enabled : bool
+         Origin : TimeSpan // clock time where the gauge's left edge sits
+         Offset : float // px gap below the clock bar (clears the label band)
+         Height : float
+      }
+
+      static member Default =
+         {
+            Enabled = true
+            Origin = TimeSpan.FromHours 10.0
+            Offset = 10.0
+            Height = 4.0
+         }
+
    type ClockTuning =
       {
          DayStart : TimeSpan
@@ -37,6 +54,7 @@ module ClockMathTypes =
          CoolDuration : TimeSpan
          BarHeight : float
          RealTime : bool
+         Gauge : GaugeTuning
       }
 
       member this.SpanMinutes = (this.DayEnd - this.DayStart).TotalMinutes
@@ -47,13 +65,14 @@ module ClockMathTypes =
       static member Default =
          {
             DayStart = TimeSpan.FromHours 9.0
-            DayEnd = TimeSpan.FromHours 20.0
+            DayEnd = TimeSpan.FromHours 21.0
             HourWidthMultiple = 8.0
             FlashDuration = TimeSpan.FromMilliseconds 400.0
             SlideDuration = TimeSpan.FromMilliseconds 1200.0
             CoolDuration = TimeSpan.FromMilliseconds 2500.0
             BarHeight = 12.0
             RealTime = false
+            Gauge = GaugeTuning.Default
          }
 
 module ClockMath =
