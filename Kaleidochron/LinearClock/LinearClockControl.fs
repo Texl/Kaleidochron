@@ -107,10 +107,6 @@ type LinearClockControl() =
             if wd > 0.0 && ht > 0.0 then
                ctx.FillRectangle(brush, Rect(x, y, wd, ht))
 
-         let fillRectFrame (pen : IPen) x y wd ht =
-            if wd > 0.0 && ht > 0.0 then
-               ctx.DrawRectangle(pen, Rect(x, y, wd, ht))
-
          let label (text : string) x y (color : Color) alpha =
             let ft =
                FormattedText(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, Palette.typeface, 9.0, Palette.solidA color alpha)
@@ -140,10 +136,6 @@ type LinearClockControl() =
 
             fillRect (Palette.solid cellColor) x0 yTop (x1 - x0) barH
 
-            if j = h - 1 && oldHot > 0.0 then
-               let pen = Pen(Palette.solidA Palette.marker oldHot, 2.0)
-               fillRectFrame pen x0 yTop (x1 - x0) barH
-
             let getQuarticPulse interval duration =
                let t = timeOfDay.TotalSeconds % interval
                Math.Pow(min (t / duration) 1.0, 4.0)
@@ -169,6 +161,9 @@ type LinearClockControl() =
                   let pulseWidth = widthStart * (1.0 - pulse) + widthEnd * pulse
                   // fillRect (Palette.solidA Palette.currentCellHot pulse) (xf - pulseWidth) yTop pulseWidth barH
                   fillRect (Palette.gradientA [| (0.0, Palette.currentCell); (0.75, Palette.currentCellHot); (1.0, Palette.currentCell) |] pulse) (xf - pulseWidth) yTop pulseWidth barH
+
+               if oldHot > 0.0 then
+                  fillRect (Palette.solid cellColor) x0 yTop (x1 - x0) barH
 
             // structural quarter kerfs + labels: any hour wide enough,
             // so the completed hour keeps its quarters through flash & collapse
