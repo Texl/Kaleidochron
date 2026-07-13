@@ -1,6 +1,11 @@
 namespace Kaleidochron
 
 [<AutoOpen>]
+module Math =
+   let inline (%%) a b =
+      ((a % b) + b) % b
+
+[<AutoOpen>]
 module ClockMathTypes =
    open System
    type Clock =
@@ -53,23 +58,22 @@ module ClockMathTypes =
          SlideDuration : TimeSpan
          CoolDuration : TimeSpan
          BarHeight : float
-         RealTime : bool
+         RealTimeOffset : TimeSpan
          Gauge : GaugeTuning
       }
 
-      member this.SpanMinutes = (this.DayEnd - this.DayStart).TotalMinutes
+      member this.Span = this.DayEnd - this.DayStart
 
       /// Left edge of the span-sized window containing timeOfDay. Windows
       /// tile the 24h day anchored at DayStart, so 9→21 rolls over to 21→9
       /// (and back again at 9), including the stretch past midnight.
       member this.WindowStart (timeOfDay : TimeSpan) : TimeSpan =
-         let day = 24.0 * 60.0
-         let since = (((timeOfDay - this.DayStart).TotalMinutes % day) + day) % day
-         let k = floor (since / this.SpanMinutes)
-         TimeSpan.FromMinutes((this.DayStart.TotalMinutes + k * this.SpanMinutes) % day)
+         let day = TimeSpan.FromDays(1).TotalMinutes
+         let since = (timeOfDay - this.DayStart).TotalMinutes %% day
+         let k = floor (since / this.Span.TotalMinutes)
+         TimeSpan.FromMinutes((this.DayStart.TotalMinutes + k * this.Span.TotalMinutes) %% day)
 
-      member this.HourCount = int (this.SpanMinutes / 60.0)
-      member this.HourCount2 = (this.DayEnd - this.DayStart).Hours
+      member this.HourCount = (this.DayEnd - this.DayStart).Hours
 
       static member Default =
          {
@@ -80,7 +84,7 @@ module ClockMathTypes =
             SlideDuration = TimeSpan.FromMilliseconds 1200.0
             CoolDuration = TimeSpan.FromMilliseconds 4800.0
             BarHeight = 12.0
-            RealTime = false
+            RealTimeOffset = TimeSpan.Zero
             Gauge = GaugeTuning.Default
          }
 
@@ -92,7 +96,7 @@ module ClockMath =
    /// the expanded one sits at a fixed position for the entire day. Between
    /// commits the layout is fully static; only the fill edge moves.
    let layoutFor (t : ClockTuning) (width : float) (k : int) : Layout =
-      let span = t.SpanMinutes
+      let span = t.Span.TotalMinutes
       let wl = t.HourWidthMultiple * width * 60.0 / span
       let s = (width - wl) / (span - 60.0)
       let ks = float k * 60.0

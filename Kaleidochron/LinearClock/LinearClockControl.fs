@@ -13,11 +13,9 @@ type LinearClockControl() =
 
    static let clockProperty = AvaloniaProperty.Register<LinearClockControl, Clock>("Clock", Clock.Default)
 
-   static let tuningProperty =
-      AvaloniaProperty.Register<LinearClockControl, ClockTuning>("Tuning", ClockTuning.Default)
+   static let tuningProperty = AvaloniaProperty.Register<LinearClockControl, ClockTuning>("Tuning", ClockTuning.Default)
 
-   static let hoursLoggedProperty =
-      AvaloniaProperty.Register<LinearClockControl, TimeSpan>("HoursLogged", TimeSpan.Zero)
+   static let hoursLoggedProperty = AvaloniaProperty.Register<LinearClockControl, TimeSpan>("HoursLogged", TimeSpan.Zero)
 
    static member ClockProperty = clockProperty
 
@@ -66,23 +64,20 @@ type LinearClockControl() =
       if bounds.Width <= 0.0 || tuning.HourCount < 2 then
          ()
       else
-         let timeOfDay = this.Clock.GetTimeOfDay()
+         let timeOfDay = this.Clock.GetTimeOfDay() + this.Tuning.RealTimeOffset
 
          let windowStart = tuning.WindowStart timeOfDay
 
          let totalMinutesNow =
             let day = 24.0 * 60.0
-
-            (((timeOfDay - windowStart).TotalMinutes % day) + day) % day
-            |> min (tuning.SpanMinutes - 1e-4)
+            (timeOfDay - windowStart).TotalMinutes %% day
+            |> min (tuning.Span.TotalMinutes - 1e-4)
 
          let h = int (totalMinutesNow / 60.0)
          let phase = ClockMath.phase tuning h (TimeSpan.FromMinutes(totalMinutesNow % 60.0))
 
          let w = bounds.Width
-         // let mid = bounds.Height / 2.0
          let barH = tuning.BarHeight
-         // let yTop = mid - barH / 2.0
          let yTop = 0.0
          let mid = yTop + (barH - yTop) / 2.0
 
@@ -188,14 +183,14 @@ type LinearClockControl() =
             // hour(s); bound the scan to hours h−1..h during transitions
             let lo, hi =
                if lvl.Step < 5.0 then
-                  max 0.0 (float (h - 1) * 60.0 - lvl.Step), min tuning.SpanMinutes (float h * 60.0 + 60.0 + lvl.Step)
+                  max 0.0 (float (h - 1) * 60.0 - lvl.Step), min tuning.Span.TotalMinutes (float h * 60.0 + 60.0 + lvl.Step)
                else
-                  0.0, tuning.SpanMinutes
+                  0.0, tuning.Span.TotalMinutes
 
             let mutable m = ceil (lo / lvl.Step) * lvl.Step
 
             while m < hi do
-               if m % lvl.Coarser <> 0.0 && m > 0.0 && m < tuning.SpanMinutes then
+               if m % lvl.Coarser <> 0.0 && m > 0.0 && m < tuning.Span.TotalMinutes then
                   let spacing = (map (m + lvl.Step) - map (m - lvl.Step)) / 2.0
                   let a = Math.Clamp((spacing - lvl.Gate) / lvl.Gate, 0.0, 1.0)
 
@@ -225,11 +220,11 @@ type LinearClockControl() =
             let originMin = (g.Origin - windowStart).TotalMinutes
 
             // Origin outside the active window (e.g. overnight): gauge hidden
-            if originMin >= 0.0 && originMin < tuning.SpanMinutes then
-               let filledMin = Math.Clamp(originMin + this.HoursLogged.TotalMinutes, originMin, tuning.SpanMinutes)
+            if originMin >= 0.0 && originMin < tuning.Span.TotalMinutes then
+               let filledMin = Math.Clamp(originMin + this.HoursLogged.TotalMinutes, originMin, tuning.Span.TotalMinutes)
                let yg = yTop + barH + g.Offset
                let x0 = map originMin
                let xf = map filledMin
 
-               fillRect (Palette.solid Palette.gaugeTrack) x0 yg (map tuning.SpanMinutes - x0) g.Height
+               fillRect (Palette.solid Palette.gaugeTrack) x0 yg (map tuning.Span.TotalMinutes - x0) g.Height
                fillRect (Palette.solid Palette.gaugeFill) x0 yg (xf - x0) g.Height
