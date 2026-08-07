@@ -24,7 +24,7 @@ let init () =
    {
       ClockTuning = ClockTuning.Default
       Playing = true
-      HoursLogged = TimeSpan.FromHours 3.25 // placeholder until wired to a real data source
+      HoursLogged = TimeSpan.FromHours 0.0 // placeholder until wired to a real data source
    }
 
 type Msg =
