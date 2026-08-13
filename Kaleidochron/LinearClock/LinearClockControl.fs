@@ -61,41 +61,39 @@ type LinearClockControl() =
       let tuning = this.Tuning
       let bounds = this.Bounds
 
-      if bounds.Width <= 0.0 || tuning.HourCount < 2 then
-         ()
-      else
+      if bounds.Width > 0.0 && tuning.HourCount >= 2 then
          let timeOfDay = this.Clock.GetTimeOfDay() + this.Tuning.RealTimeOffset
 
          let windowStart = tuning.WindowStart timeOfDay
 
-         let totalMinutesNow =
+         let minutesSinceWindowStart =
             let day = 24.0 * 60.0
             (timeOfDay - windowStart).TotalMinutes %% day
             |> min (tuning.Span.TotalMinutes - 1e-4)
 
-         let h = int (totalMinutesNow / 60.0)
-         let phase = ClockMath.phase tuning h (TimeSpan.FromMinutes(totalMinutesNow % 60.0))
+         let hoursSinceWindowStart = int (minutesSinceWindowStart / 60.0)
+         let phase = ClockMath.phase tuning hoursSinceWindowStart (TimeSpan.FromMinutes(minutesSinceWindowStart % 60.0))
 
-         let w = bounds.Width
-         let barH = tuning.BarHeight
+         let width = bounds.Width
+         let barHeight = tuning.BarHeight
          let yTop = 0.0
-         let mid = yTop + (barH - yTop) / 2.0
+         let yMid = yTop + (barHeight - yTop) / 2.0
 
-         let lb = ClockMath.layoutFor tuning w h
+         let layoutCurrentHour = ClockMath.layoutFor tuning width hoursSinceWindowStart
 
-         let la =
-            if h > 0 then
-               Some(ClockMath.layoutFor tuning w (h - 1))
+         let layoutPrevHour =
+            if hoursSinceWindowStart > 0 then
+               Some(ClockMath.layoutFor tuning width (hoursSinceWindowStart - 1))
             else
                None
 
          let map, markerX, oldHot =
-            match phase, la with
+            match phase, layoutPrevHour with
             | FirstHour, _
-            | _, None -> lb.Map, lb.Edge, 0.0
+            | _, None -> layoutCurrentHour.Map, layoutCurrentHour.Edge, 0.0
             | Flash p, Some a -> a.Map, a.Edge, p
-            | Slide e, Some a -> (fun m -> ClockMath.lerp (a.Map m) (lb.Map m) e), ClockMath.lerp a.Edge lb.Edge e, 0.25 * (1.0 - e)
-            | Filling glow, Some _ -> lb.Map, lb.Edge, glow
+            | Slide e, Some a -> (fun m -> ClockMath.lerp (a.Map m) (layoutCurrentHour.Map m) e), ClockMath.lerp a.Edge layoutCurrentHour.Edge e, 0.25 * (1.0 - e)
+            | Filling glow, Some _ -> layoutCurrentHour.Map, layoutCurrentHour.Edge, glow
 
          // ---- draw helpers ----
          let fillRect (brush : IBrush) x y wd ht =
@@ -116,98 +114,118 @@ type LinearClockControl() =
             let x1 = map m1 - 1.0
 
             let baseColor =
-               if j < h then
+               if j < hoursSinceWindowStart then
                   Palette.cell
-               elif j = h then
+               elif j = hoursSinceWindowStart then
                   Palette.lerpColor Palette.cellDim Palette.cell 0.07 // staged
                else
                   Palette.cellDim
 
             let cellColor =
-               if j = h - 1 && oldHot > 0.0 then
+               if j = hoursSinceWindowStart - 1 && oldHot > 0.0 then
                   Palette.lerpColor baseColor Palette.cellHot oldHot
                else
                   baseColor
 
-            fillRect (Palette.solid cellColor) x0 yTop (x1 - x0) barH
+            fillRect (Palette.solid cellColor) x0 yTop (x1 - x0) barHeight
 
-            let getQuarticPulse interval duration =
-               let t = timeOfDay.TotalSeconds % interval
-               Math.Pow(min (t / duration) 1.0, 4.0)
-
-            let getQuadraticPulse interval duration =
-               let t = timeOfDay.TotalSeconds % interval
-               Math.Pow(min (t / duration) 1.0, 2.0)
-
-            let pulse, widthPulse =
+            let pulse, pulseAlpha =
                let interval = 5.0
-               let duration = 5.0
-               getQuarticPulse interval duration, getQuadraticPulse interval duration
+
+               let fillDuration = 1.5
+               let flashDuration = 0.25
+               let fadeDuration = 2.25
+
+               let fillStart, fillEnd = 0.0, fillDuration
+               let flashStart, flashEnd = fillEnd, fillEnd + flashDuration
+               let fadeStart, fadeEnd = flashEnd, flashEnd + fadeDuration
+
+               if fadeEnd > interval then
+                  failwith "Fade duration exceeds pulse interval"
+
+               let t = timeOfDay.TotalSeconds % interval
+
+               Tween.Exponential.easeIn (t / fillDuration),
+               match t with
+               | t when t >= fillStart && t < fillEnd -> 0.5
+               | t when t >= flashStart && t < flashEnd -> 1.0
+               | t when t >= fadeStart && t < fadeEnd -> let s = (t - fadeStart) / fadeDuration in 1.0 - Tween.Exponential.easeOut s
+               | _ -> 0.0
 
             // current-hour fill + leading edge
-            if j = h then
-               let xf = map (min totalMinutesNow m1)
+            if j = hoursSinceWindowStart then
+               let xf = map (min minutesSinceWindowStart m1)
 
                if xf > x0 then
-                  fillRect (Palette.solid Palette.currentCell) x0 yTop (xf - x0) barH
-                  fillRect (Palette.solid Palette.currentCellDim) xf yTop (x1 - xf) barH
-                  let widthStart = xf - x0
-                  let widthEnd = 0.0
+
+                  fillRect (Palette.solid Palette.currentCell) x0 yTop (xf - x0) barHeight
+                  fillRect (Palette.solid Palette.currentCellDim) xf yTop (x1 - xf) barHeight
+                  let widthStart = 0.0
+                  let widthEnd = xf - x0
                   let pulseWidth = widthStart * (1.0 - pulse) + widthEnd * pulse
-                  // fillRect (Palette.solidA Palette.currentCellHot pulse) (xf - pulseWidth) yTop pulseWidth barH
-                  fillRect (Palette.gradientA [| (0.0, Palette.currentCell); (0.75, Palette.currentCellHot); (1.0, Palette.currentCell) |] pulse) (xf - pulseWidth) yTop pulseWidth barH
+                  fillRect (Palette.solidA Palette.currentCellHot pulseAlpha) x0 yTop pulseWidth barHeight
+
+                  if pulse < 1.0 then
+                     let w = min pulseWidth 1.0
+                     fillRect (Palette.solid Palette.marker) (x0 + pulseWidth - w) yTop w barHeight
+
+                  // fillRect (Palette.gradientA [| (0.0, Palette.currentCellHot); (0.0, Palette.currentCellHot); (1.0, Palette.currentCell) |] pulse) (xf - pulseWidth) yTop pulseWidth barHeight
 
                if oldHot > 0.0 then
-                  fillRect (Palette.solid cellColor) x0 yTop (x1 - x0) barH
+                  fillRect (Palette.solid cellColor) x0 yTop (x1 - x0) barHeight
 
             // structural quarter kerfs + labels: any hour wide enough,
             // so the completed hour keeps its quarters through flash & collapse
             if x1 - x0 > 120.0 then
                for q in [ 15.0; 30.0; 45.0 ] do
                   let xq = map (m0 + q)
-                  fillRect (Palette.solid Palette.kerf) (xq - 1.0) yTop 2.0 barH
+                  fillRect (Palette.solid Palette.kerf) (xq - 1.0) yTop 2.0 barHeight
                   // label $":%02d{int q}" (xq + 3.0) (yTop + barH + 4.0) Palette.labelC 0.75
-                  label $":%02d{int q}" (xq + 3.0) (yTop + barH) Palette.labelC 1.0
+                  label $":%02d{int q}" (xq + 3.0) (yTop + barHeight) Palette.labelC 1.0
 
             // commit edge highlight on the landed hour
             match phase with
-            | Filling glow when j = h - 1 && glow > 0.0 ->
+            | Filling glow when j = hoursSinceWindowStart - 1 && glow > 0.0 ->
                let br = Palette.solidA Palette.currentCellHot glow
                fillRect br x0 (yTop - 1.0) (x1 - x0) 1.0
-               fillRect br x0 (yTop + barH) (x1 - x0) 1.0
+               fillRect br x0 (yTop + barHeight) (x1 - x0) 1.0
             | _ -> ()
 
          // ---- gated fine ticks ----
-         for lvl in ClockMath.tickLevels do
+         for tickLevel in ClockMath.tickLevels do
             // sub-5-minute levels can only clear their gate near the expanded
             // hour(s); bound the scan to hours h−1..h during transitions
             let lo, hi =
-               if lvl.Step < 5.0 then
-                  max 0.0 (float (h - 1) * 60.0 - lvl.Step), min tuning.Span.TotalMinutes (float h * 60.0 + 60.0 + lvl.Step)
+               if tickLevel.Step < 5.0 then
+                  max 0.0 (float (hoursSinceWindowStart - 1) * 60.0 - tickLevel.Step),
+                  min tuning.Span.TotalMinutes (float hoursSinceWindowStart * 60.0 + 60.0 + tickLevel.Step)
                else
-                  0.0, tuning.Span.TotalMinutes
+                  0.0,
+                  tuning.Span.TotalMinutes
 
-            let mutable m = ceil (lo / lvl.Step) * lvl.Step
+            let mutable m = ceil (lo / tickLevel.Step) * tickLevel.Step
 
             while m < hi do
-               if m % lvl.Coarser <> 0.0 && m > 0.0 && m < tuning.Span.TotalMinutes then
-                  let spacing = (map (m + lvl.Step) - map (m - lvl.Step)) / 2.0
-                  let a = Math.Clamp((spacing - lvl.Gate) / lvl.Gate, 0.0, 1.0)
+               if m % tickLevel.Coarser <> 0.0 &&
+                  m > 0.0 &&
+                  m < tuning.Span.TotalMinutes then
+                  let spacing = (map (m + tickLevel.Step) - map (m - tickLevel.Step)) / 2.0
+                  let a = Math.Clamp((spacing - tickLevel.Gate) / tickLevel.Gate, 0.0, 1.0)
 
                   if a > 0.02 then
-                     let ht = barH * lvl.HeightFrac
-                     fillRect (Palette.solidA Palette.kerf (0.6 * a)) (map m - lvl.Width / 2.0) (mid - ht / 2.0) lvl.Width ht
+                     let ht = barHeight * tickLevel.HeightFrac
+                     fillRect (Palette.solidA Palette.kerf (0.6 * a)) (map m - tickLevel.Width / 2.0) (yMid - ht / 2.0) tickLevel.Width ht
 
-               m <- m + lvl.Step
+               m <- m + tickLevel.Step
 
          // ---- hour labels ----
-         for j in 0 .. tuning.HourCount do
-            let x = map (float j * 60.0)
+         for hourIndex in 0 .. tuning.HourCount do
+            let x = map (float hourIndex * 60.0)
             // label (string (tuning.DayStart.Hours + j)) (x + 3.0) (yTop + barH + 0.0) Palette.labelC 0.9
-            label (string ((((windowStart.Hours + j) - 1) % 12) + 1)) (x + 3.0) (yTop + barH) Palette.labelC 0.75
+            label (string ((((windowStart.Hours + hourIndex) - 1) % 12) + 1)) (x + 3.0) (yTop + barHeight) Palette.labelC 0.75
 
          // ---- now line ----
-         fillRect (Palette.solid Palette.marker) (markerX + 1.0) yTop 1.0 barH
+         fillRect (Palette.solid Palette.marker) (markerX + 1.0) yTop 1.0 barHeight
 
          // ---- hours-logged gauge ----
          // Shares `map` with the bar above, so its left edge rides the Origin
@@ -222,7 +240,7 @@ type LinearClockControl() =
             // Origin outside the active window (e.g. overnight): gauge hidden
             if originMin >= 0.0 && originMin < tuning.Span.TotalMinutes then
                let filledMin = Math.Clamp(originMin + this.HoursLogged.TotalMinutes, originMin, tuning.Span.TotalMinutes)
-               let yg = yTop + barH + g.Offset
+               let yg = yTop + barHeight + g.Offset
                let x0 = map originMin
                let xf = map filledMin
 
